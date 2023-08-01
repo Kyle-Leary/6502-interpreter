@@ -2,6 +2,7 @@
 #include "assembler.h"
 #include "ast.h"
 #include "cpu.h"
+#include "cpu_mapper.h"
 #include "defines.h"
 #include "lexer.h"
 #include "parse.h"
@@ -102,24 +103,60 @@ static NodeData visit_interpret(NodeIndex n_idx) {
 static void display_interpreter_state(WINDOW *interpreter_win) {
   wclear(interpreter_win);
 
-  // Set up colors.
-  start_color();
-  init_pair(1, COLOR_WHITE, COLOR_BLACK);
-  init_pair(2, COLOR_GREEN, COLOR_BLACK);
+  int i = 1;
 
   box(interpreter_win, 0, 0); // Add a border to the window
 
   wattron(interpreter_win, COLOR_PAIR(1)); // White color
-  mvwprintw(interpreter_win, 1, 1, "CPU State:");
+  mvwprintw(interpreter_win, i, 1, "CPU State:");
+  i++;
 
   wattron(interpreter_win, COLOR_PAIR(2)); // Green color
-  mvwprintw(interpreter_win, 2, 1, "PC: 0x%04X", emu_state->cpu_state->pc);
-  mvwprintw(interpreter_win, 3, 1, "A: 0x%02X", emu_state->cpu_state->a);
-  mvwprintw(interpreter_win, 4, 1, "X: 0x%02X", emu_state->cpu_state->x);
-  mvwprintw(interpreter_win, 5, 1, "Y: 0x%02X", emu_state->cpu_state->y);
-  mvwprintw(interpreter_win, 6, 1, "Status: 0b%08B",
+  mvwprintw(interpreter_win, i, 1, "PC: 0x%04X", emu_state->cpu_state->pc);
+  i++;
+  mvwprintw(interpreter_win, i, 1, "A: 0x%02X", emu_state->cpu_state->a);
+  i++;
+  mvwprintw(interpreter_win, i, 1, "X: 0x%02X", emu_state->cpu_state->x);
+  i++;
+  mvwprintw(interpreter_win, i, 1, "Y: 0x%02X", emu_state->cpu_state->y);
+  i++;
+
+  mvwprintw(interpreter_win, i, 1, "  MEMORY: ");
+  i++;
+
+  // how many slots of wram should be printed?
+#define NUM_MEMORY_PRINTS 10
+  // how much the wram printout is offset backwards.
+#define INDEXING_OFFSET 5
+
+  // print out a memory preview from wram.
+  int limit = i + NUM_MEMORY_PRINTS;
+  u8 pc = emu_state->cpu_state->pc;
+  int mem_index = 0;
+  for (; i < limit; i++) {
+    int address_to_print = mem_index + pc - INDEXING_OFFSET;
+    // extend into the mirror, i guess?
+    if (address_to_print < 0x00 || address_to_print > WRAM_MIRROR_SIZE) {
+      mvwprintw(interpreter_win, i, 1, "    - OUT OF BOUNDS -");
+      // continue while still incrementing the mem index ptr
+      goto mem_print_loop_end;
+    }
+
+    // the %s is the pointer at the program counter. if we're printing the
+    // program counter wram address, then render the arrow pointer.
+    mvwprintw(interpreter_win, i, 1, "    [0x%02X]: 0x%02X %s",
+              address_to_print, emu_state->map->wram[address_to_print],
+              (mem_index - INDEXING_OFFSET == 0) ? "<-" : "");
+  mem_print_loop_end:
+    mem_index++;
+  }
+
+#undef NUM_MEMORY_PRINTS
+
+  mvwprintw(interpreter_win, i, 1, "Status: 0b%08B",
             emu_state->cpu_state->status);
-  mvwprintw(interpreter_win, 7, 1, "Shutting down: %s",
+  i++;
+  mvwprintw(interpreter_win, i, 1, "Shutting down: %s",
             emu_state->cpu_state->shutting_down ? "Yes" : "No");
 
   wattroff(interpreter_win, COLOR_PAIR(2)); // Turn off green color

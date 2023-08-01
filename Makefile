@@ -30,7 +30,7 @@ ifdef VIEWER
 CFLAGS += "-DVIEWER=1"
 endif
 
-all: $(TARGET)
+all: clean $(TARGET)
 
 # just link statically like another object file, since static libraries are basically just that.
 $(TARGET): $(OBJS) $(STATIC_CPULIB_PATH)
@@ -45,4 +45,4 @@ $(STATIC_CPULIB_PATH):
 	make -C lib6502
 
 clean:
-	rm -f $(shell find $(OBJ_DIR) -name "*.o") $(TARGET)
+	rm -f $(shell find $(OBJ_DIR) -name "*.o") $(TARGET) $(STATIC_CPULIB_PATH)
