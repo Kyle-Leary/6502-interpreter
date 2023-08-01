@@ -1,5 +1,6 @@
-# Variables
-CPULIB_PATH := /home/zack/Documents/c/6502cpulib
+# the local install of lib6502 for the interpreter.
+CPULIB_PATH := lib6502
+STATIC_CPULIB_PATH := $(CPULIB_PATH)/lib6502.a 
 
 CC := gcc
 # also include the api headers for the 6502 library we're using here.
@@ -32,12 +33,16 @@ endif
 all: $(TARGET)
 
 # just link statically like another object file, since static libraries are basically just that.
-$(TARGET): $(OBJS)
-	$(CC) -o $@ $^ $(CPULIB_PATH)/lib6502.a $(INCLUDES) $(CFLAGS) -g
+$(TARGET): $(OBJS) $(STATIC_CPULIB_PATH)
+	$(CC) -o $@ $^ $(STATIC_CPULIB_PATH) $(INCLUDES) $(CFLAGS) 
 
 # Pattern rule to compile .c files into .o files
 $(OBJ_DIR)/%.o: $(SRC_DIR)/%.c
 	$(CC) $(CFLAGS) $(INCLUDES) -o $@ $< -g
+
+# make the 6502 library in the submodule.
+$(STATIC_CPULIB_PATH):
+	make -C lib6502
 
 clean:
 	rm -f $(shell find $(OBJ_DIR) -name "*.o") $(TARGET)

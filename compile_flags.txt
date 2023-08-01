@@ -1,4 +1,3 @@
 -Isrc
--DVIEWER=1
 -DTESTING=1
--I/home/zack/Documents/c/6502cpulib/src/api
+-Ilib6502/src/api

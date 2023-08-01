@@ -1,0 +1,3 @@
+[submodule "lib6502"]
+	path = lib6502
+	url = https://github.com/Kyle-Leary/lib6502.git
