@@ -131,7 +131,8 @@ uint make_opcode(Arg argument, Lexeme instruction_id, u8 dest[MAX_OPCODE_LEN]) {
   // they are in the Lexeme table. (just offset by the instruction mask.)
   int opcode_offset = instruction_id - INSTRUCTION_MASK;
   if (opcode_offset < 0 || opcode_offset > NUM_6502_OPCODES) {
-    error("INVALID INSTRUCTION LEXEME PASSED TO make_opcode(). [lexeme: %d]\n", instruction_id);
+    error("INVALID INSTRUCTION LEXEME PASSED TO make_opcode(). [lexeme: %d]\n",
+          instruction_id);
   }
 
   // find the first byte, just the opcode offset in the table.
@@ -208,7 +209,7 @@ uint make_opcode(Arg argument, Lexeme instruction_id, u8 dest[MAX_OPCODE_LEN]) {
 
   case Indirect: {
     dest[1] = value_list[0];
-    return 2;
+    return 3;
   } break;
 
   case IndexedIndirect: {

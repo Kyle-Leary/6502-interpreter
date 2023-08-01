@@ -119,11 +119,16 @@ static NodeIndex empty(Lexer *l) {
   return add_node(make_node(NT_EMPTY, NULL_INDEX, NULL_INDEX, NO_NODE_DATA));
 }
 
+// this is the main place the argument type is determined. the addressing mode
+// is easy, and can be determined entirely by the string format passed to the
+// interpreter.
 static NodeIndex argument(Lexer *l) {
   Lexeme cl = l->curr_token.type;
   Arg a; // fill this arg from the stack, we're going to use all 64 bits of it
          // and put it in the argument node for easy parsing.
+
   switch (cl) {
+  // immediate handling
   case HASHTAG: {
     // literal 8 bit value
     a.mode = Immediate;
@@ -132,13 +137,108 @@ static NodeIndex argument(Lexer *l) {
     eat(l, HEX_LITERAL);
   } break;
 
-  case DOLLAR:
+  // determine the ZP and Abs submodes
+  case HEX_LITERAL: {
     // 8 or 16 bit address
-    // assume it's a zero page address for now.
-    a.mode = ZP;
     a.value = l->curr_token.value;
     eat(l, HEX_LITERAL);
-    break;
+    if (a.value < 256) {
+      // general ZP. then, see if there's the ,X and ,Y at the end, and change
+      // the mode accordingly.
+      a.mode = ZP;
+      cl = l->curr_token.type;
+      switch (cl) {
+
+      case COMMA: {
+        eat(l, COMMA);
+        // kind of a hack, instead of ,X and ,Y being a token i'm just using X
+        // and Y as general IDs.
+        char *id = (char *)l->curr_token.value;
+
+        if (strncmp(id, "X", 1) == 0) {
+          a.mode = ZPX;
+        } else if (strncmp(id, "Y", 1) == 0) {
+          a.mode = ZPY;
+        }
+
+        eat(l, ID);
+        break;
+
+      default: {
+        // do nothing. we're already set to ZP.
+      } break;
+      }
+      }
+
+    } else {
+      // very similar to ZP.
+      a.mode = Abs;
+
+      cl = l->curr_token.type;
+      switch (cl) {
+
+      case COMMA: {
+        eat(l, COMMA);
+        // kind of a hack, instead of ,X and ,Y being a token i'm just using X
+        // and Y as general IDs.
+        char *id = (char *)l->curr_token.value;
+
+        if (strncmp(id, "X", 1) == 0) {
+          a.mode = AbsX;
+        } else if (strncmp(id, "Y", 1) == 0) {
+          a.mode = AbsY;
+        }
+
+        eat(l, ID);
+        break;
+
+      default: {
+        // do nothing. we're already set to ZP.
+      } break;
+      }
+      }
+    }
+  } break;
+
+  // indirect addressing handler.
+  // indirect: ($c0c0)
+  // indexed indirect: ($c0,X)
+  // indirect indexed: ($c0),Y
+  case LPAREN: {
+    eat(l, LPAREN);
+
+    a.value =
+        l->curr_token
+            .value; // operate generically over the value, it's just a hex
+                    // literal no matter which weird indirect mode we find here.
+
+    eat(l, HEX_LITERAL);
+    cl = l->curr_token.type;
+
+    switch (cl) {
+    case RPAREN: {
+      a.mode = Indirect;
+      eat(l, RPAREN);
+      if (l->curr_token.type == COMMA) {
+        // we're in the ,Y
+        a.mode = IndirectIndexed;
+        eat(l, COMMA);
+        eat(l, ID);
+      }
+    } break;
+
+    case COMMA: {
+      a.mode = IndexedIndirect;
+      eat(l, COMMA);
+      eat(l, ID);
+      eat(l, RPAREN);
+    } break;
+
+    default: {
+    } break;
+    }
+
+  } break;
 
   case ID: {
     // a label passed in as an argument.
@@ -159,8 +259,9 @@ static NodeIndex argument(Lexer *l) {
     a.mode = Implicit;
   } break;
 
-  default:
+  default: {
     error("INVALID ARGUMENT STARTING TOKEN: %s", lexeme_to_string(cl));
+  }
   }
 
   // parse out an ID, and just put that in the left slot.
@@ -189,7 +290,8 @@ static NodeIndex instruction(Lexer *l) {
   // an instruction an a single, optional argument.
   NodeIndex left = NULL_INDEX;
 
-  // eat through the instruction at the cursor, then try to parse the argument.
+  // eat through the instruction at the cursor, then try to parse the
+  // argument.
   eat(l, l->curr_token.type);
 
   left =
@@ -219,8 +321,8 @@ static NodeIndex statement(Lexer *l) {
   if (cl == DOT) {
     printf("Choosing pragma branch in statement parser\n");
     return pragma(l);
-  } else if (cl ==
-             ID) { // an ID in the first slot, like a variable or function name.
+  } else if (cl == ID) { // an ID in the first slot, like a variable or
+                         // function name.
     printf("Choosing label branch in statement parser\n");
     return label(l);
   } else if (is_instruction(cl)) {
@@ -245,12 +347,12 @@ static NodeIndex statement_list(Lexer *l) {
 
   printf("after parsing statement, found lexeme: %s\n", lexeme_to_string(cl));
 
-  if (cl == NEWLINE) { // if there's another statement found, parse it and add
-                       // it onto the tree.
+  if (cl == NEWLINE) { // if there's another statement found, parse it and
+                       // add it onto the tree.
     printf("Found another newline in the statement list, parsing another "
            "statement...\n");
-    eat(l, NEWLINE); // move past the NEWLINE, positioning at the start of the
-                     // new next statement.
+    eat(l, NEWLINE); // move past the NEWLINE, positioning at the start of
+                     // the new next statement.
     second_term = statement_list(l);
   }
 
@@ -258,8 +360,8 @@ static NodeIndex statement_list(Lexer *l) {
       make_node(NT_STATEMENT_LIST, left, second_term, NO_NODE_DATA));
 }
 
-// parse is the only non-static API method of the parser. it parses the whole
-// program into the global AST.
+// parse is the only non-static API method of the parser. it parses the
+// whole program into the global AST.
 //
 // will return the index of the root node into the
 // global ast Node array.
@@ -268,7 +370,8 @@ NodeIndex parse(char text_input[INPUT_LEN]) {
       sizeof(Lexer)); // pass through the lexer manually and malloc that. TODO:
                       // is there a better way to place the lexer in memory?
 
-  // use the actual string length and not the buffer length to do the EOF check.
+  // use the actual string length and not the buffer length to do the EOF
+  // check.
   l->text_len = strlen(text_input);
   l->pos = -1; // set to -1, the init next() call will put it at 0.
   l->curr_token.type = EMPTY;
